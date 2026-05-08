@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sentinel Admin</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial;
+    background: #050505;
+    color: white;
+}
+
+.container {
+    max-width: 900px;
+    margin: 120px auto;
+    padding: 40px;
+}
+
+.card {
+    background: #0c0c0c;
+    border: 1px solid #1b1b1b;
+    border-radius: 24px;
+    padding: 30px;
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-size: 40px;
+    margin-bottom: 20px;
+}
+
+button {
+    background: white;
+    color: black;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 12px;
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+button.secondary {
+    background: transparent;
+    border: 1px solid #2a2a2a;
+    color: white;
+}
+
+input {
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid #2a2a2a;
+    background: #111;
+    color: white;
+    width: 100%;
+    margin-bottom: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Sentinel Admin Panel</h1>
+
+<div class="card" id="loginBox">
+
+    <h3>Administrator Login</h3>
+
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+
+    <button onclick="login()">Login</button>
+
+</div>
+
+<div class="card" id="phoneBox">
+
+    <h3>Or use your phone number</h3>
+
+    <input id="phone" placeholder="+61XXXXXXXXX">
+
+    <button onclick="sendCode()">Send Code</button>
+
+    <div id="smsSection" style="display:none; margin-top:10px;">
+        <input id="smsCode" placeholder="Enter SMS code">
+        <button onclick="verifyCode()">Verify Code</button>
+    </div>
+
+    <div id="recaptcha-container"></div>
+
+</div>
+
+<div id="panel" style="display:none">
+
+    <div class="card">
+        <h3>Development Mode</h3>
+        <button onclick="setDev(true)">ON</button>
+        <button class="secondary" onclick="setDev(false)">OFF</button>
+    </div>
+
+    <div class="card">
+        <h3>Security Status</h3>
+        <button onclick="setSecurity('protected')">Protected</button>
+        <button class="secondary" onclick="setSecurity('risk')">At Risk</button>
+    </div>
+
+    <div class="card">
+        <h3>Bot Visibility</h3>
+        <button onclick="setVisibility(true)">Show Online</button>
+        <button class="secondary" onclick="setVisibility(false)">Hide Status</button>
+    </div>
+
+</div>
+
+</div>
+
+<!-- ================= FIREBASE ================= -->
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+import {
+    getAuth,
+    signInWithEmailAndPassword,
+    signInWithPhoneNumber,
+    RecaptchaVerifier,
+    onAuthStateChanged,
+    signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD18jGk3Fc90evbeweSlOKv8lNTrnFdhpc",
+  authDomain: "sentinel-dcd59.firebaseapp.com",
+  projectId: "sentinel-dcd59",
+  storageBucket: "sentinel-dcd59.firebasestorage.app",
+  messagingSenderId: "632812410452",
+  appId: "1:632812410452:web:e86ef56deffc119efb7fc1",
+  measurementId: "G-CTHTVE4ZCW"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+/* =========================
+   EMAIL LOGIN (UNCHANGED)
+========================= */
+
+window.login = async function () {
+
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+
+        document.getElementById("loginBox").style.display = "none";
+        document.getElementById("panel").style.display = "block";
+
+    } catch (err) {
+        alert(err.message);
+    }
+};
+
+/* =========================
+   PHONE LOGIN (FIXED)
+========================= */
+
+window.recaptchaVerifier = null;
+
+window.initRecaptcha = async function () {
+
+    if (window.recaptchaVerifier) return;
+
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible'
+    });
+
+    await window.recaptchaVerifier.render();
+};
+
+window.sendCode = async function () {
+
+    const phone = document.getElementById("phone").value;
+
+    try {
+
+        await window.initRecaptcha();
+
+        window.confirmationResult = await signInWithPhoneNumber(
+            auth,
+            phone,
+            window.recaptchaVerifier
+        );
+
+        document.getElementById("smsSection").style.display = "block";
+
+        alert("SMS code sent!");
+
+    } catch (err) {
+        console.error(err);
+        alert(err.message);
+    }
+};
+
+window.verifyCode = async function () {
+
+    const code = document.getElementById("smsCode").value;
+
+    try {
+        await window.confirmationResult.confirm(code);
+
+        document.getElementById("loginBox").style.display = "none";
+        document.getElementById("panel").style.display = "block";
+
+    } catch (err) {
+        console.error(err);
+        alert("Invalid code");
+    }
+};
+
+/* =========================
+   AUTH STATE
+========================= */
+
+onAuthStateChanged(auth, (user) => {
+
+    if (user) {
+        document.getElementById("loginBox").style.display = "none";
+        document.getElementById("panel").style.display = "block";
+    } else {
+        document.getElementById("loginBox").style.display = "block";
+        document.getElementById("panel").style.display = "none";
+    }
+
+});
+
+/* =========================
+   LOGOUT (UNCHANGED)
+========================= */
+
+window.logout = async function () {
+    await signOut(auth);
+};
+
+</script>
+
+<!-- ================= BACKEND (UNCHANGED) ================= -->
+
+<script>
+const API = "http://127.0.0.1:3000";
+
+async function setDev(state) {
+    await fetch(API + "/config", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ development: state })
+    });
+}
+
+async function setSecurity(value) {
+    await fetch(API + "/security", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ security: value })
+    });
+}
+
+async function setVisibility(value) {
+    await fetch(API + "/visibility", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ showStatus: value })
+    });
+}
+</script>
+
+</body>
+</html>
